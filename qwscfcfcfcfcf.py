@@ -1015,7 +1015,7 @@ def keep_alive():
 # Запуск Flask-сервера
 if __name__ == "__main__":
     # Устанавливаем вебхук (нужно только один раз, можно сделать через curl вручную)
-    webhook_url = f"https://<your-render-app>.onrender.com/{bot.token}"
+    webhook_url = f"https://gptuchit.onrender.com/7749948862:AAEc6Y0tm8GI5xvBB2ZqqPP_i8kdCsI2Yv4"
     bot.remove_webhook()
     bot.set_webhook(url=webhook_url)
 
