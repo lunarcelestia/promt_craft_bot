@@ -957,11 +957,14 @@ def ping():
     return "pong", 200
 
 def keep_alive():
-    threading.Timer(1500, keep_alive).start()
     try:
-        requests.get("https://<your-render-app>.onrender.com/ping")
+        app_url = "https://gptuchit.onrender.com"
+        requests.get(f"{app_url}/ping", timeout=10)
+        print(f"[{datetime.now().isoformat()}] Ping successful")
     except Exception as e:
-        print(f"Ошибка при самопинге: {e}")
+        print(f"[{datetime.now().isoformat()}] Ping failed: {e}")
+    
+    threading.Timer(1500, keep_alive).start()
 
 #запуск фласка
 if __name__ == "__main__":
@@ -974,4 +977,3 @@ if __name__ == "__main__":
 
 
     app.run(host="0.0.0.0", port=int(os.environ.get("PORT", 5000)))
-
