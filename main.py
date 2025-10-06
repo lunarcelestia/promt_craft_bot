@@ -75,109 +75,6 @@ def save_log_to_file(log_data):
         return False
 
 
-@bot.message_handler(content_types=['web_app_data'])
-def handle_web_app_data(message):
-    try:
-        data = message.web_app_data.data
-        user_id = message.from_user.id
-        username = message.from_user.username or "Нет username"
-        name = message.from_user.full_name or "Нет имени"
-        log_data = {
-            'timestamp': datetime.now().isoformat(),
-            'message': f"Получены данные от пользователя {user_id} ({username}): {data}"
-        }
-        save_log_to_file(log_data)
-        
-        print(f"Получены данные от веб-приложения: {data}")
-        
-        if data.startswith('register:'):
-            _, email, password = data.split(':')
-            user_data = {
-                'telegram_id': user_id,
-                'telegram_username': username,
-                'name': name,
-                'email': email,
-                'password': password
-            }
-            log_data = {
-                'timestamp': datetime.now().isoformat(),
-                'message': f"Регистрация пользователя: {email} (Telegram ID: {user_id})"
-            }
-            save_log_to_file(log_data)
-            
-            if save_user_data(user_data):
-                bot.send_message(message.chat.id, "Регистрация успешно завершена!")
-                bot.answer_web_app_query(
-                    message.web_app_data.query_id,
-                    "Регистрация успешно завершена!"
-                )
-            else:
-                bot.send_message(message.chat.id, "Ошибка при регистрации. Пожалуйста, попробуйте позже.")
-                bot.answer_web_app_query(
-                    message.web_app_data.query_id,
-                    "Ошибка при регистрации. Пожалуйста, попробуйте позже."
-                )
-        
-        elif data.startswith('login:'):
-            _, email, password = data.split(':')
-            log_data = {
-                'timestamp': datetime.now().isoformat(),
-                'message': f"Попытка входа: {email} (Telegram ID: {user_id})"
-            }
-            save_log_to_file(log_data)
-            user_file = f"user_data/{email.replace('@', '_at_').replace('.', '_dot_')}.json"
-            
-            if os.path.exists(user_file):
-                with open(user_file, 'r', encoding='utf-8') as f:
-                    user_data = json.load(f)
-                
-                if user_data.get('password') == password:
-                    bot.send_message(message.chat.id, "Вход выполнен успешно!")
-                    bot.answer_web_app_query(
-                        message.web_app_data.query_id,
-                        "Вход выполнен успешно!"
-                    )
-                    log_data = {
-                        'timestamp': datetime.now().isoformat(),
-                        'message': f"Успешный вход: {email} (Telegram ID: {user_id})"
-                    }
-                    save_log_to_file(log_data)
-                else:
-                    bot.send_message(message.chat.id, "Неверный пароль.")
-                    bot.answer_web_app_query(
-                        message.web_app_data.query_id,
-                        "Неверный пароль."
-                    )
-                    log_data = {
-                        'timestamp': datetime.now().isoformat(),
-                        'message': f"Неверный пароль при входе: {email} (Telegram ID: {user_id})"
-                    }
-                    save_log_to_file(log_data)
-            else:
-                bot.send_message(message.chat.id, "Пользователь с таким email не найден.")
-                bot.answer_web_app_query(
-                    message.web_app_data.query_id,
-                    "Пользователь с таким email не найден."
-                )
-                log_data = {
-                    'timestamp': datetime.now().isoformat(),
-                    'message': f"Пользователь не найден: {email} (Telegram ID: {user_id})"
-                }
-                save_log_to_file(log_data)
-    except Exception as e:
-        print(f"Ошибка при обработке данных веб-приложения: {str(e)}")
-        bot.send_message(message.chat.id, "Произошла ошибка при обработке данных.")
-        if hasattr(message, 'web_app_data') and hasattr(message.web_app_data, 'query_id'):
-            bot.answer_web_app_query(
-                message.web_app_data.query_id,
-                "Произошла ошибка при обработке данных."
-            )
-        log_data = {
-            'timestamp': datetime.now().isoformat(),
-            'message': f"Ошибка при обработке данных: {str(e)}"
-        }
-        save_log_to_file(log_data)
-
 @bot.message_handler(commands=['start'])
 def main(message):
     user_id = message.from_user.id
@@ -188,17 +85,11 @@ def main(message):
     btn2 = types.KeyboardButton('Задания')                  
     btn3 = types.KeyboardButton('Тренировка')
     btn4 = types.KeyboardButton('Оценка промпта')
-
-    web_app = types.WebAppInfo(url="https://lunarcelestia.github.io/GPTuchit_store/")  #
-    btn_web_app = types.KeyboardButton(text="Курсы", web_app=web_app)
     
     markup.row(btn1, btn2)
     markup.row(btn3, btn4)
-    markup.row(btn_web_app)
     
-    bot.send_message(message.chat.id, f'Привет, {message.from_user.full_name}! Это бот, который поможет тебе выучить как правильно пользоваться чатом GPT! \n' +
-                     "Также вы можете приобрести наши расширенные курсы, которые помогут вам освоить искусство создания эффективных промптов. \n" +
-                     "Для ознакомления перейдите в наше мини-приложение, нажав на кнопку в меню 'Курсы' ", reply_markup=markup)
+    bot.send_message(message.chat.id, f'Привет, {message.from_user.full_name}! Это бот, который поможет тебе выучить как правильно пользоваться чатом GPT!', reply_markup=markup)
 
 @bot.message_handler(func=lambda message: user_states.get(message.from_user.id) == 'main_menu')
 def handle_main_menu(message):
@@ -927,12 +818,9 @@ def return_to_main_menu(message):
     btn2 = types.KeyboardButton('Задания')
     btn3 = types.KeyboardButton('Тренировка')
     btn4 = types.KeyboardButton('Оценка промпта')
-    web_app = types.WebAppInfo(url="https://lunarcelestia.github.io/GPTuchit_store/") 
-    btn_web_app = types.KeyboardButton(text="Курсы", web_app=web_app)
     
     markup.row(btn1, btn2)
     markup.row(btn3, btn4)
-    markup.row(btn_web_app) 
     
     bot.send_message(message.chat.id, 'Вы вернулись в главное меню', reply_markup=markup)
 
@@ -977,4 +865,3 @@ if __name__ == "__main__":
 
 
     app.run(host="0.0.0.0", port=int(os.environ.get("PORT", 5000)))
-
