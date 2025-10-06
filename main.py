@@ -939,7 +939,7 @@ def return_to_main_menu(message):
 app = Flask(__name__)
 
 # вебхук 
-@app.route(f"/{bot.token}", methods=["POST"])
+@app.route(f"/{BOT_TOKEN}", methods=["POST"])
 def telegram_webhook():
     json_str = request.get_data().decode("utf-8")
     update = telebot.types.Update.de_json(json_str)
@@ -968,7 +968,7 @@ def keep_alive():
 
 #запуск фласка
 if __name__ == "__main__":
-    webhook_url = f"https://gptuchit.onrender.com/7749948862:AAEc6Y0tm8GI5xvBB2ZqqPP_i8kdCsI2Yv4"
+    webhook_url = f"https://gptuchit.onrender.com/{BOT_TOKEN}"
     bot.remove_webhook()
     bot.set_webhook(url=webhook_url)
 
@@ -977,3 +977,4 @@ if __name__ == "__main__":
 
 
     app.run(host="0.0.0.0", port=int(os.environ.get("PORT", 5000)))
+
