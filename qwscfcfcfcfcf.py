@@ -11,55 +11,46 @@ import os
 from datetime import datetime
 from flask import Flask, request
 import threading
+from dotenv import load_dotenv
 
-bot = telebot.TeleBot('7749948862:AAEc6Y0tm8GI5xvBB2ZqqPP_i8kdCsI2Yv4')
-OPENAI_API_KEY = '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'
-PROXY_API_KEY = 'sk-MuAF57ghwdMALYxY4E0kICX1G8UxzcRP'
+load_dotenv()
 
+BOT_TOKEN = os.getenv('BOT_TOKEN')
+OPENAI_API_KEY = os.getenv('OPENAI_API_KEY')
+PROXY_API_KEY = os.getenv('PROXY_API_KEY')
+
+bot = telebot.TeleBot(BOT_TOKEN)
 user_states = {}
 user_answers = {}
 bad_prompts = {}
 welcome_message_sent = {}
 user_reset_time = {}
 user_requests = defaultdict(int)
-user_gpt_requests = defaultdict(int)  # Новый счетчик для запросов к GPT
-MAX_GPT_REQUESTS = 10  # Максимальное количество запросов
+user_gpt_requests = defaultdict(int) 
+MAX_GPT_REQUESTS = 10  
 
 RESET_TIME = 9999999999999999999
 
-# Функция для сохранения данных пользователя в файл
+
 def save_user_data(user_data):
     try:
-        # Создаем директорию, если она не существует
+        
         if not os.path.exists('user_data'):
             os.makedirs('user_data')
-        
-        # Формируем имя файла на основе email пользователя
         filename = f"user_data/{user_data['email'].replace('@', '_at_').replace('.', '_dot_')}.json"
         
-        # Добавляем дату регистрации
         user_data['registered_at'] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        
-        # Сохраняем данные в файл
         with open(filename, 'w', encoding='utf-8') as f:
             json.dump(user_data, f, ensure_ascii=False, indent=4)
-        
-        # Также сохраняем в общий файл со всеми пользователями
         all_users_file = 'user_data/all_users.json'
         all_users = []
-        
-        # Читаем существующие данные, если файл существует
         if os.path.exists(all_users_file):
             with open(all_users_file, 'r', encoding='utf-8') as f:
                 try:
                     all_users = json.load(f)
                 except json.JSONDecodeError:
                     all_users = []
-        
-        # Добавляем нового пользователя
         all_users.append(user_data)
-        
-        # Сохраняем обновленные данные
         with open(all_users_file, 'w', encoding='utf-8') as f:
             json.dump(all_users, f, ensure_ascii=False, indent=4)
         
@@ -68,21 +59,13 @@ def save_user_data(user_data):
         print(f"Ошибка при сохранении данных пользователя: {str(e)}")
         return False
 
-# Функция для сохранения логов в файл
 def save_log_to_file(log_data):
     try:
-        # Создаем директорию для логов, если она не существует
         if not os.path.exists('logs'):
             os.makedirs('logs')
-        
-        # Формируем имя файла с текущей датой
         current_date = datetime.now().strftime("%Y-%m-%d")
         log_file = f"logs/auth_logs_{current_date}.txt"
-        
-        # Форматируем сообщение для записи в файл
         log_message = f"[{log_data['timestamp']}] {log_data['message']}\n"
-        
-        # Записываем лог в файл
         with open(log_file, 'a', encoding='utf-8') as f:
             f.write(log_message)
         
@@ -91,7 +74,7 @@ def save_log_to_file(log_data):
         print(f"Ошибка при сохранении лога: {str(e)}")
         return False
 
-# Обработчик для веб-приложения
+
 @bot.message_handler(content_types=['web_app_data'])
 def handle_web_app_data(message):
     try:
@@ -99,8 +82,6 @@ def handle_web_app_data(message):
         user_id = message.from_user.id
         username = message.from_user.username or "Нет username"
         name = message.from_user.full_name or "Нет имени"
-        
-        # Сохраняем лог о получении данных
         log_data = {
             'timestamp': datetime.now().isoformat(),
             'message': f"Получены данные от пользователя {user_id} ({username}): {data}"
@@ -110,7 +91,6 @@ def handle_web_app_data(message):
         print(f"Получены данные от веб-приложения: {data}")
         
         if data.startswith('register:'):
-            # Формат: register:email:password
             _, email, password = data.split(':')
             user_data = {
                 'telegram_id': user_id,
@@ -119,8 +99,6 @@ def handle_web_app_data(message):
                 'email': email,
                 'password': password
             }
-            
-            # Сохраняем лог о регистрации
             log_data = {
                 'timestamp': datetime.now().isoformat(),
                 'message': f"Регистрация пользователя: {email} (Telegram ID: {user_id})"
@@ -129,7 +107,6 @@ def handle_web_app_data(message):
             
             if save_user_data(user_data):
                 bot.send_message(message.chat.id, "Регистрация успешно завершена!")
-                # Отправляем ответ обратно в веб-приложение
                 bot.answer_web_app_query(
                     message.web_app_data.query_id,
                     "Регистрация успешно завершена!"
@@ -142,17 +119,12 @@ def handle_web_app_data(message):
                 )
         
         elif data.startswith('login:'):
-            # Формат: login:email:password
             _, email, password = data.split(':')
-            
-            # Сохраняем лог о попытке входа
             log_data = {
                 'timestamp': datetime.now().isoformat(),
                 'message': f"Попытка входа: {email} (Telegram ID: {user_id})"
             }
             save_log_to_file(log_data)
-            
-            # Проверяем, существует ли пользователь
             user_file = f"user_data/{email.replace('@', '_at_').replace('.', '_dot_')}.json"
             
             if os.path.exists(user_file):
@@ -165,8 +137,6 @@ def handle_web_app_data(message):
                         message.web_app_data.query_id,
                         "Вход выполнен успешно!"
                     )
-                    
-                    # Сохраняем лог об успешном входе
                     log_data = {
                         'timestamp': datetime.now().isoformat(),
                         'message': f"Успешный вход: {email} (Telegram ID: {user_id})"
@@ -178,8 +148,6 @@ def handle_web_app_data(message):
                         message.web_app_data.query_id,
                         "Неверный пароль."
                     )
-                    
-                    # Сохраняем лог о неудачной попытке входа
                     log_data = {
                         'timestamp': datetime.now().isoformat(),
                         'message': f"Неверный пароль при входе: {email} (Telegram ID: {user_id})"
@@ -191,8 +159,6 @@ def handle_web_app_data(message):
                     message.web_app_data.query_id,
                     "Пользователь с таким email не найден."
                 )
-                
-                # Сохраняем лог о неудачной попытке входа
                 log_data = {
                     'timestamp': datetime.now().isoformat(),
                     'message': f"Пользователь не найден: {email} (Telegram ID: {user_id})"
@@ -206,8 +172,6 @@ def handle_web_app_data(message):
                 message.web_app_data.query_id,
                 "Произошла ошибка при обработке данных."
             )
-            
-        # Сохраняем лог об ошибке
         log_data = {
             'timestamp': datetime.now().isoformat(),
             'message': f"Ошибка при обработке данных: {str(e)}"
@@ -224,13 +188,13 @@ def main(message):
     btn2 = types.KeyboardButton('Задания')                  
     btn3 = types.KeyboardButton('Тренировка')
     btn4 = types.KeyboardButton('Оценка промпта')
-    # Добавляем кнопку веб-приложения для регистрации и входа
-    web_app = types.WebAppInfo(url="https://lunarcelestia.github.io/GPTuchit_store/")  # Замените на ваш URL
+
+    web_app = types.WebAppInfo(url="https://lunarcelestia.github.io/GPTuchit_store/")  #
     btn_web_app = types.KeyboardButton(text="Курсы", web_app=web_app)
     
     markup.row(btn1, btn2)
     markup.row(btn3, btn4)
-    markup.row(btn_web_app)  # Добавляем кнопку веб-приложения в отдельную строку
+    markup.row(btn_web_app)
     
     bot.send_message(message.chat.id, f'Привет, {message.from_user.full_name}! Это бот, который поможет тебе выучить как правильно пользоваться чатом GPT! \n' +
                      "Также вы можете приобрести наши расширенные курсы, которые помогут вам освоить искусство создания эффективных промптов. \n" +
@@ -293,7 +257,6 @@ def handle_main_menu(message):
 
 
 def start_training(chat_id):
-    # Проверяем лимит запросов
     if user_gpt_requests[chat_id] >= MAX_GPT_REQUESTS:
         bot.send_message(chat_id, "Ваши запросы к GPT закончились. Лимит: 10 запросов.")
         return_to_main_menu(bot.get_message(chat_id))
@@ -315,7 +278,6 @@ def handle_prompt_response(message):
             return_to_main_menu(message)
             return
 
-        # Проверяем лимит запросов
         if user_gpt_requests[user_id] >= MAX_GPT_REQUESTS:
             bot.send_message(message.chat.id, "Ваши запросы к GPT закончились. Лимит: 10 запросов.")
             return_to_main_menu(message)
@@ -325,12 +287,9 @@ def handle_prompt_response(message):
         response = asyncio.run(get_openai_response(formatted_prompt, user_id))
         
         if response is None:
-            # Если response is None, значит сообщение уже было отредактировано в get_openai_response
-            # Отправляем только количество оставшихся запросов
             remaining_requests = MAX_GPT_REQUESTS - user_gpt_requests[user_id]
             bot.send_message(message.chat.id, f"У вас осталось {remaining_requests} запросов.")
             
-            # Предлагаем отправить следующий промпт
             markup = types.ReplyKeyboardMarkup(resize_keyboard=True)
             btn_return = types.KeyboardButton('Вернуться в главное меню')
             markup.add(btn_return)
@@ -342,14 +301,14 @@ def handle_prompt_response(message):
             return_to_main_menu(message)
             return
             
-        # 1. Сначала отправляем ответ GPT
+        # ответ к GPT
         bot.send_message(message.chat.id, response)
         
-        # 2. Затем отправляем количество оставшихся запросов
+        # счетчик запросов
         remaining_requests = MAX_GPT_REQUESTS - user_gpt_requests[user_id]
         bot.send_message(message.chat.id, f"У вас осталось {remaining_requests} запросов.")
         
-        # 3. И только потом предложение отправить следующий промпт
+        # и некст предложение кинуть промпт
         markup = types.ReplyKeyboardMarkup(resize_keyboard=True)
         btn_return = types.KeyboardButton('Вернуться в главное меню')
         markup.add(btn_return)
@@ -363,12 +322,10 @@ def handle_prompt_response(message):
 async def get_openai_response(prompt, user_id=None):
     try:
         if user_id is not None:
-            # Проверяем количество запросов
             if user_gpt_requests[user_id] >= MAX_GPT_REQUESTS:
                 return "Ваши запросы к GPT закончились. Лимит: 10 запросов."
             
             user_gpt_requests[user_id] += 1
-            # Отправляем сообщение о том, что запрос обрабатывается
             processing_message = bot.send_message(user_id, "Chat GPT обрабатывает запрос...")
 
         request_url = "https://api.proxyapi.ru/openai/v1/chat/completions"
@@ -397,7 +354,7 @@ async def get_openai_response(prompt, user_id=None):
                         # Редактируем сообщение о обработке на ответ от GPT
                         if user_id is not None:
                             bot.edit_message_text(chat_id=user_id, message_id=processing_message.message_id, text=gpt_response)
-                            return None  # Возвращаем None, так как сообщение уже отредактировано
+                            return None  # Возвращаем None
                         return gpt_response
                     else:
                         error_text = "Ошибка: Нет ответа от OpenAI."
@@ -478,8 +435,6 @@ def handle_user_feedback(message):
     if user_feedback == 'Вернуться в главное меню':
         return_to_main_menu(message)
         return
-
-    # Проверяем лимит запросов
     if user_gpt_requests[user_id] >= MAX_GPT_REQUESTS:
         bot.send_message(message.chat.id, "Ваши запросы к GPT закончились. Лимит: 10 запросов.")
         return_to_main_menu(message)
@@ -496,15 +451,13 @@ def handle_user_feedback(message):
         bot.send_message(message.chat.id, analysis)
         return_to_main_menu(message)
         return
-    
-    # Отправляем анализ от GPT
     bot.send_message(message.chat.id, f"Анализ от GPT: {analysis}")
     
-    # Отправляем количество оставшихся запросов
+
     remaining_requests = MAX_GPT_REQUESTS - user_gpt_requests[user_id]
     bot.send_message(message.chat.id, f"У вас осталось {remaining_requests} запросов.")
     
-    # Возвращаемся в главное меню
+
     user_states[user_id] = 'main_menu' 
     bot.send_message(message.chat.id, "Вы вернулись в главное меню!")
 
@@ -974,19 +927,18 @@ def return_to_main_menu(message):
     btn2 = types.KeyboardButton('Задания')
     btn3 = types.KeyboardButton('Тренировка')
     btn4 = types.KeyboardButton('Оценка промпта')
-    # Добавляем кнопку веб-приложения для регистрации и входа
-    web_app = types.WebAppInfo(url="https://lunarcelestia.github.io/GPTuchit_store/")  # Замените на ваш URL
+    web_app = types.WebAppInfo(url="https://lunarcelestia.github.io/GPTuchit_store/") 
     btn_web_app = types.KeyboardButton(text="Курсы", web_app=web_app)
     
     markup.row(btn1, btn2)
     markup.row(btn3, btn4)
-    markup.row(btn_web_app)  # Добавляем кнопку веб-приложения в отдельную строку
+    markup.row(btn_web_app) 
     
     bot.send_message(message.chat.id, 'Вы вернулись в главное меню', reply_markup=markup)
 
 app = Flask(__name__)
 
-# Вебхук обработка входящих запросов от Telegram
+# вебхук 
 @app.route(f"/{bot.token}", methods=["POST"])
 def telegram_webhook():
     json_str = request.get_data().decode("utf-8")
@@ -994,34 +946,32 @@ def telegram_webhook():
     bot.process_new_updates([update])
     return "OK", 200
 
-# Эндпоинт для Render (например, для проверки работоспособности)
+# эндпоинт для render
 @app.route("/", methods=["GET"])
 def index():
     return "Бот работает!", 200
 
-# Эндпоинт для самопинга (Render будет видеть активность)
+# эндпоинт для самопинга
 @app.route("/ping", methods=["GET"])
 def ping():
     return "pong", 200
 
-# Функция самопинга (каждые 25 минут)
 def keep_alive():
-    threading.Timer(1500, keep_alive).start()  # 25 минут = 1500 секунд
+    threading.Timer(1500, keep_alive).start()
     try:
         requests.get("https://<your-render-app>.onrender.com/ping")
     except Exception as e:
         print(f"Ошибка при самопинге: {e}")
 
-# Запуск Flask-сервера
+#запуск фласка
 if __name__ == "__main__":
-    # Устанавливаем вебхук (нужно только один раз, можно сделать через curl вручную)
     webhook_url = f"https://gptuchit.onrender.com/7749948862:AAEc6Y0tm8GI5xvBB2ZqqPP_i8kdCsI2Yv4"
     bot.remove_webhook()
     bot.set_webhook(url=webhook_url)
 
-    # Запускаем keep-alive пинг
+
     keep_alive()
 
-    # Запускаем Flask
+
     app.run(host="0.0.0.0", port=int(os.environ.get("PORT", 5000)))
 
